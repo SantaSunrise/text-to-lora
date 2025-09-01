@@ -13,7 +13,7 @@ pip install --upgrade transformers>=4.53.3
 ```python
 python scripts/train_custom_sft.py \
     configs/hyper_lora_decontam_lol_tasks.yaml \
-    --model_dir=Qwen/Qwen3-8B \
+    --model_dir=Qwen/Qwen3-32B \
     --emb_model=Alibaba-NLP/gte-large-en-v1.5 \
     --warmup_frac=0.2 \
     --lr=2.5e-5 \
