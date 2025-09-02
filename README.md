@@ -8,6 +8,7 @@ uv pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2
 uv pip install src/fishfarm
 source .venv/bin/activate
 pip install --upgrade transformers>=4.53.3
+deactivate
 tmux new -s lora_training
 cd text-to-lora
 source .venv/bin/activate
@@ -39,5 +40,7 @@ python scripts/train_custom_sft.py \
 
 ```
 Ctrl+B, D でデタッチ
+tmux attach -t lora_training
 ```
+
 tmux,よくわからんね〜〜〜〜
