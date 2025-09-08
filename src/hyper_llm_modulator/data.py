@@ -153,7 +153,10 @@ def load_and_format_dataset(metadata, tokenizer, sft_mode, is_intx_model, ds_nam
         logger.debug(f"Loading preprocessed dataset: {ds_hash}")
         formatted_dataset = datasets.load_from_disk(f"{TRANSFORMED_DS_DIR}/{ds_hash}")
     else:
-        dataset = load_dataset(**ds_kwargs, trust_remote_code=True)
+        # trust_remote_codeが既に含まれている場合は重複を避ける
+        if 'trust_remote_code' not in ds_kwargs:
+            ds_kwargs['trust_remote_code'] = True
+        dataset = load_dataset(**ds_kwargs)
         processed_dataset = dataset.map(get_preprocessing_fn(ds_name), batched=False)
 
         prompt_formatting_fn = get_prompt_formatting_fn(
