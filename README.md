@@ -35,7 +35,7 @@ python scripts/train_custom_sft.py \
     --weight_decay=1e-2 \
     --hypernet_latent_size=512 \
     --head_in_size=4096 \
-    --val_batch_size=32
+    --val_batch_size=16
 ```
 
 ```
