@@ -14,8 +14,13 @@ cd text-to-lora
 source .venv/bin/activate
 ```
 
-```python
-python scripts/train_custom_sft.py \
+```
+accelerate launch \
+    --num_processes=4 \
+    --gpu_ids=0,1,2,3 \
+    --num_machines=1 \
+    --mixed_precision=no \
+    scripts/train_custom_sft.py \
     configs/hyper_lora_decontam_lol_tasks.yaml \
     --model_dir=Qwen/Qwen3-32B \
     --emb_model=Alibaba-NLP/gte-large-en-v1.5 \
