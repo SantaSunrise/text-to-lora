@@ -7,12 +7,14 @@ import json
 import logging
 import os
 import random
+import time
 from typing import Union
 
 import torch
 import datasets
 from datasets import load_dataset
 from torch.utils.data import Dataset, ConcatDataset, Sampler, DataLoader
+from huggingface_hub.errors import HfHubHTTPError
 
 from hyper_llm_modulator.utils import (
     embed_texts,
@@ -36,6 +38,26 @@ BENCHMARK_TASK_INFO = {
     "arc_easy": {"name": "ARC-Easy", "split": "validation[:500]"},
     "arc_challenge": {"name": "ARC-Challenge", "split": "validation[:500]"},
 }
+
+
+def load_dataset_with_retry(max_retries=5, base_delay=30, backoff_factor=2, **ds_kwargs):
+    for attempt in range(max_retries + 1):
+        try:
+            logger.info(f"Loading dataset (attempt {attempt + 1}/{max_retries + 1}): {ds_kwargs}")
+            return load_dataset(**ds_kwargs)
+        except HfHubHTTPError as e:
+            if e.response.status_code == 429 and attempt < max_retries:
+                delay = base_delay * (backoff_factor ** attempt)
+                logger.warning(f"Rate limit hit (429 error). Retrying in {delay} seconds... (attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(delay)
+            else:
+                logger.error(f"Failed to load dataset after {max_retries + 1} attempts: {e}")
+                raise
+        except Exception as e:
+            logger.error(f"Unexpected error loading dataset: {e}")
+            raise
+    
+    raise RuntimeError(f"Failed to load dataset after {max_retries + 1} attempts")
 
 
 class PerTaskEmbSFTDataset(Dataset):
@@ -127,6 +149,10 @@ def get_datasets(dataset_names, metadata, tokenizer, sft_mode, is_intx_model, in
             logger.debug(f"Loading preprocessed dataset: {ds_hash}")
             tokenized_dataset = datasets.load_from_disk(f"{TRANSFORMED_DS_DIR}/{ds_hash}")
         else:
+            if i > 0:
+                logger.info(f"Adding 5 second delay before loading dataset {i+1}/{len(dataset_info_dict)}")
+                time.sleep(5)
+            
             formatted_dataset = load_and_format_dataset(
                 metadata, tokenizer, sft_mode, is_intx_model, ds_name, ds_kwargs
             )
@@ -156,7 +182,7 @@ def load_and_format_dataset(metadata, tokenizer, sft_mode, is_intx_model, ds_nam
         # trust_remote_codeが既に含まれている場合は重複を避ける
         if 'trust_remote_code' not in ds_kwargs:
             ds_kwargs['trust_remote_code'] = True
-        dataset = load_dataset(**ds_kwargs)
+        dataset = load_dataset_with_retry(**ds_kwargs)
         processed_dataset = dataset.map(get_preprocessing_fn(ds_name), batched=False)
 
         prompt_formatting_fn = get_prompt_formatting_fn(
@@ -470,10 +496,10 @@ if __name__ == "__main__":
     from datasets import load_dataset
 
     seed = 42
-    ds1 = load_dataset("Lots-of-LoRAs/task022_cosmosqa_passage_inappropriate_binary", "default", split="train[:5]")
-    ds2 = load_dataset("Lots-of-LoRAs/task033_winogrande_answer_generation", split="train[:5]")
-    ds3 = load_dataset("Lots-of-LoRAs/task034_winogrande_question_modification_object", split="train[:5]")
-    ds4 = load_dataset("Lots-of-LoRAs/task035_winogrande_question_modification_person", split="train[:5]")
+    ds1 = load_dataset_with_retry(path="Lots-of-LoRAs/task022_cosmosqa_passage_inappropriate_binary", name="default", split="train[:5]")
+    ds2 = load_dataset_with_retry(path="Lots-of-LoRAs/task033_winogrande_answer_generation", split="train[:5]")
+    ds3 = load_dataset_with_retry(path="Lots-of-LoRAs/task034_winogrande_question_modification_object", split="train[:5]")
+    ds4 = load_dataset_with_retry(path="Lots-of-LoRAs/task035_winogrande_question_modification_person", split="train[:5]")
     dataset = ConcatDataset([ds1, ds2, ds3, ds4])
     sampler = HierachicalBatchSampler(dataset, 2, 2)
     dataloader = DataLoader(dataset, batch_sampler=sampler)
